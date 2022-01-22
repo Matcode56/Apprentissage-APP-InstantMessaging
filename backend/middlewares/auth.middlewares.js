@@ -29,6 +29,21 @@ module.exports.checkEmailAndPswRegister=(req,res, next)=>{
     
 }
 
+module.exports.checkAgeAndEmail= async (req,res, next)=>{
+    const age= req.body.age;
+    const email= req.body.email;
+
+    if(age<=17) res.status(401).send("Vous devez être majeur pour accéder à l'application");
+    else{
+        const query='SELECT * FROM users WHERE email= $1';
+        const value=[email]
+        const checkEmail= await pool.query(query, value)
+    
+        if(checkEmail.rows.length>0) res.send("Email déja utilisé")
+        else next()
+    }
+}
+
 module.exports.checkToken= (req, res, next)=>{
     const token= req.cookie.jwt;
 
@@ -54,12 +69,5 @@ module.exports.checkToken= (req, res, next)=>{
 }
 
 module.exports.checkEmailLogin= async (req,res,next)=>{
-    const email= req.body.email;
-    console.log(email)
-    const query='SELECT * FROM users WHERE email= $1';
-    const value=[email]
-    const checkEmail= await pool.query(query, value)
-    
-    if (checkEmail.rows.length>0) res.send(checkEmail.rows)
-    else res.status(400).send("Email inccorect")
+   
 }
