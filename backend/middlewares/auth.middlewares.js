@@ -68,6 +68,3 @@ module.exports.checkToken= (req, res, next)=>{
       }
 }
 
-module.exports.checkEmailLogin= async (req,res,next)=>{
-   
-}

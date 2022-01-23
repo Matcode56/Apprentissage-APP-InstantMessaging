@@ -8,6 +8,7 @@ module.exports.register= async (req,res)=>{
     const email= req.body.email;
     const age= req.body.age;
     const password= await cryptagePassword();
+    const randomPP= "BasicalPhoto.png"
 
     async function cryptagePassword(){
         const salt = await bcrypt.genSalt();
