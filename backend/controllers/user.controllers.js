@@ -1,5 +1,7 @@
 const pool= require('../config/db')
 const fs= require('fs')
+const { CLIENT_RENEG_LIMIT } = require('tls')
+const { array } = require('../config/uploadImg')
 
 module.exports.getAllUser= (req, res)=>{
     pool.query('SELECT * FROM users', (err, docs)=>{
@@ -66,40 +68,194 @@ module.exports.changePhotoProfil= (req,res)=>{
 }
 
 module.exports.sendRequestFriend= async (req,res)=>{
-    
-    const id= req.params.id;
-    const requestSend= await getRequestSend();
 
-    async function getRequestSend(){
-        
-        const request= "SELECT requestsend FROM friends WHERE userId=$1"
-        const value=[id]
-        try{
-            const data= await pool.query(request,value)
-            return data.rows[0].requestsend
-        }
-        catch (err) {
-            res.status(400).send(err)
-        }
-    }
+    const id= req.params.id;
+    const idToSendRequest= req.body.idToSendRequest;
+
+    const currentDate = new Date();
+    const timeStamp= currentDate.toLocaleString('fr-Fr')
+
+    const requestSend= res.locals.requestSend;
+    const requestWaiting= res.locals.requestWaiting;
+    updateRequestSend();
 
     console.log(requestSend)
+    console.log(requestWaiting)
 
-    if(requestSend){
-        const currentDate = new Date();
-        const date= currentDate.toLocaleString('fr-Fr')
-        console.log(date)
-        const request= "update friends set requestsend= $1 where userId=$2"
-        const value=[{"userId": 1, "timeStamp": date} ,id]
-        try{
-            const data= await pool.query(request,value)
-            res.send(data.rows)
+    
+    function updateRequestSend(){
+        if(requestSend.length<1){
+            const jsonUpdateRequestSend= JSON.stringify([{"userId": idToSendRequest, 'timeStamp': timeStamp}])
+            const request=`update friends set requestsend= '${jsonUpdateRequestSend}' where userId=${id} RETURNING *`
+
+            pool.query(request, (err, docs)=>{
+                if(docs) updateRequestWaiting();
+                else console.log(err)
+            })
         }
-        catch{
+    
+        else{
+            requestSend.push({"userId": idToSendRequest, 'timeStamp': timeStamp})
+            const jsonRequestSend= JSON.stringify(requestSend);
+    
+            const request=`update friends set requestsend= '${jsonRequestSend}' where userId=$1 RETURNING *`
+            const value=[id];
+            pool.query(request, value, (err, docs)=>{
+                if(docs) updateRequestWaiting();
+                else console.log(err)
+            })
+        }   
+    }
+
+    function updateRequestWaiting(){
+        if(requestWaiting.length<1){
+            const jsonUpdateRequestWaiting= JSON.stringify([{"userId": id, 'timeStamp': timeStamp}])
+            const request= `update friends set requestfriendswaiting= '${jsonUpdateRequestWaiting}' where userId=${idToSendRequest} RETURNING *`
+            pool.query(request,(err, docs)=>{
+                if(docs) res.send(docs.rows[0])
+                else console.log(err)
+            })
+        }
+    
+        else{
+            requestWaiting.push({"userId": id, 'timeStamp': timeStamp});
+            const jsonRequestWaiting= JSON.stringify(requestWaiting)
+            const request= `update friends set requestfriendswaiting= '${jsonRequestWaiting}' where userId=${idToSendRequest} RETURNING *`
+
+            pool.query(request, (err,docs)=>{
+                if(docs) res.send(docs.rows[0])
+                else console.log(err)
+            })
+        
         }
     }
-    else{
-        const request="INSERT "
+}
+
+module.exports.acceptFriend= async (req, res)=>{
+    
+    const currentDate = new Date();
+    const timeStamp= currentDate.toLocaleString('fr-Fr')
+
+    const requestSend= res.locals.requestSend;
+    const requestWaiting= res.locals.requestWaiting;
+    let yourFriends= await getYourFriends();
+    let friendsOfTheAnotherUser= await getFriendsOfAnother();
+
+    updateRequestSend()
+
+
+    async function getYourFriends(){
+        request= `SELECT friends FROM friends WHERE userId=${req.params.id}`
+        
+            try{
+                const data= await pool.query(request)
+                return data.rows[0].friends
+            }
+            catch (err) {
+                res.status(400).send('Erreur connexion Serveur ou Id Inconnu')
+            }
+        
     }
+
+    async function getFriendsOfAnother(){
+        request= `SELECT friends FROM friends WHERE userId=${req.body.idUserToAccept}`
+        
+            try{
+                const data= await pool.query(request)
+                return data.rows[0].friends
+            }
+            catch (err) {
+                res.status(400).send('Erreur connexion Serveur ou Id Inconnu')
+            }
+            
+    }
+
+    function updateRequestSend(){
+       
+        const requestSendUpdate= requestSend.filter(e=> { return e.userId != req.params.id});
+        
+        const jsonRequest= JSON.stringify(requestSendUpdate)
+
+        const request=`update friends set requestsend= '${jsonRequest}' where userId=${req.body.idUserToAccept} RETURNING *`
+        pool.query(request, (err, docs)=>{
+            if(docs) updateRequestWaiting();
+            else console.log(err)
+        })
+    }
+
+    function updateRequestWaiting(){
+            const updateRequestWaiting= requestWaiting.filter(e=> { return e.userId != req.body.idUserToAccept})
+            const jsonUpdateRequestWaiting= JSON.stringify(updateRequestWaiting)
+            const request= `update friends set requestfriendswaiting= '${jsonUpdateRequestWaiting}' where userId=${req.params.id} RETURNING *`
+            pool.query(request,(err, docs)=>{
+                if(docs) updateYourFriends();
+                else console.log(err)
+            })
+        }
+
+  
+    function updateYourFriends(){
+       
+        if(yourFriends === null) yourFriends= [];
+        yourFriends.push(req.body.idUserToAccept)
+
+        const jsonFriends= JSON.stringify(yourFriends);
+
+        const request=`update friends set friends= '${jsonFriends}' where userId=${req.params.id} RETURNING *`
+
+        pool.query(request, (err, docs)=>{
+            if(docs) updateFriendsOfTheAnotherUser();
+            if(err) res.send("erreur lors de l'ajout d'amis")
+        })
+    }
+
+    function updateFriendsOfTheAnotherUser(){
+        console.log(friendsOfTheAnotherUser)
+        if(friendsOfTheAnotherUser === null) friendsOfTheAnotherUser=[];
+        friendsOfTheAnotherUser.push(req.params.id);
+
+        const jsonFriends= JSON.stringify(friendsOfTheAnotherUser);
+
+        const request= `update friends set friends= '${jsonFriends}' where userId=${req.body.idUserToAccept} RETURNING *`
+
+        pool.query(request, (err, docs)=>{
+            if(docs) res.send(docs)
+            if(err) res.send("erreur lors de l'ajout d'amis")
+        })
+
+
+    } 
+}
+
+module.exports.refuseFriends=()=>{
+    const currentDate = new Date();
+    const timeStamp= currentDate.toLocaleString('fr-Fr')
+
+    const requestSend= res.locals.requestSend;
+    const requestWaiting= res.locals.requestWaiting;
+
+    updateRequestSend()
+
+    function updateRequestSend(){
+        const requestSendUpdate= requestSend.filter(e=> { return e.userId != req.params.id});
+        const jsonRequest= JSON.stringify(requestSendUpdate)
+
+        const request=`update friends set requestsend= '${jsonRequest}' where userId=${req.body.idUserToAccept} RETURNING *`
+        pool.query(request, (err, docs)=>{
+            if(docs) updateRequestWaiting();
+            else console.log(err)
+        })
+    }
+
+    function updateRequestWaiting(){
+            const updateRequestWaiting= requestWaiting.filter(e=> { return e.userId != req.body.idUserToAccept})
+            const jsonUpdateRequestWaiting= JSON.stringify(updateRequestWaiting)
+            const request= `update friends set requestfriendswaiting= '${jsonUpdateRequestWaiting}' where userId=${req.params.id} RETURNING *`
+            pool.query(request,(err, docs)=>{
+                if(docs) res.send(docs.rows[0])
+                else console.log(err)
+            })
+        }
+
 
 }

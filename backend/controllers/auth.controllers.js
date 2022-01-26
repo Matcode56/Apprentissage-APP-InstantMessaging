@@ -14,16 +14,34 @@ module.exports.register= async (req,res)=>{
         const salt = await bcrypt.genSalt();
         return bcrypt.hash(req.body.password, salt);
     }
- 
-    //Envoie à la base de donnée
-    const request="INSERT INTO users (nom, prenom, age, email, profilphoto, password) VALUES ($1, $2, $3, $4 , $5, $6)"
-    const values=[nom,prenom, age, email, '', password]
+    
+    if(password) insertIntoUsers()
+    //Envoie à la base de donnée:  table users
+    function insertIntoUsers(){
+        const request="INSERT INTO users (nom, prenom, age, email, profilphoto, password) VALUES ($1, $2, $3, $4 , $5, $6) RETURNING *"
+        const values=[nom,prenom, age, email, randomPP, password]
 
-    pool.query(request, values, 
-        (err, docs)=>{
-        if(docs) res.send("Utilisateurs créé")
-        else console.log(err)
+        pool.query(request, values, 
+            (err, docs)=>{
+            if(docs) insertIntoFriends(docs.rows[0].id)
+            else console.log(err)
     })
+
+
+    }
+    
+    //table: friends
+    function insertIntoFriends(id){
+        idUser= id;
+        const request="INSERT INTO friends (userId) VALUES ($1) RETURNING *"
+        const value= [idUser]
+        pool.query(request, value, (err, docs)=>{
+            if(docs) res.send("utilisateur créé")
+            else console.log(err)
+        })
+    }
+    //
+    
 
 }
 
