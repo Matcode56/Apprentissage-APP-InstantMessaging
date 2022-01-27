@@ -1,12 +1,12 @@
 const pool= require('../config/db')
 const fs= require('fs')
-const { CLIENT_RENEG_LIMIT } = require('tls')
-const { array } = require('../config/uploadImg')
+
+
 
 module.exports.getAllUser= (req, res)=>{
     pool.query('SELECT * FROM users', (err, docs)=>{
         if(res) return res.send(docs.rows)
-        else console.log(err)
+        else res.status(400).send("error")
     })
 }
 
@@ -15,7 +15,7 @@ module.exports.getUser= (req, res)=>{
     const value= [req.params.id]
     pool.query(request, value, (err, docs)=>{
         if(res) return res.send(docs.rows[0])
-        else console.log(err)
+        else res.status(400).send("error")
     })
 }
 
@@ -62,13 +62,14 @@ module.exports.changePhotoProfil= (req,res)=>{
         pool.query(request, values, 
             (err, docs)=>{
             if(docs) res.send("Photo changed")
-            else console.log(err)
+            else res.status(400).send("error")
         })
     }   
 }
 
 module.exports.sendRequestFriend= async (req,res)=>{
 
+    // Récupération des données avant update
     const id= req.params.id;
     const idToSendRequest= req.body.idToSendRequest;
 
@@ -77,12 +78,10 @@ module.exports.sendRequestFriend= async (req,res)=>{
 
     const requestSend= res.locals.requestSend;
     const requestWaiting= res.locals.requestWaiting;
+
+    //Update "En Chaine"
     updateRequestSend();
 
-    console.log(requestSend)
-    console.log(requestWaiting)
-
-    
     function updateRequestSend(){
         if(requestSend.length<1){
             const jsonUpdateRequestSend= JSON.stringify([{"userId": idToSendRequest, 'timeStamp': timeStamp}])
@@ -90,7 +89,7 @@ module.exports.sendRequestFriend= async (req,res)=>{
 
             pool.query(request, (err, docs)=>{
                 if(docs) updateRequestWaiting();
-                else console.log(err)
+                else res.status(400).send("error")
             })
         }
     
@@ -102,7 +101,7 @@ module.exports.sendRequestFriend= async (req,res)=>{
             const value=[id];
             pool.query(request, value, (err, docs)=>{
                 if(docs) updateRequestWaiting();
-                else console.log(err)
+                else res.status(400).send("error")
             })
         }   
     }
@@ -112,8 +111,8 @@ module.exports.sendRequestFriend= async (req,res)=>{
             const jsonUpdateRequestWaiting= JSON.stringify([{"userId": id, 'timeStamp': timeStamp}])
             const request= `update friends set requestfriendswaiting= '${jsonUpdateRequestWaiting}' where userId=${idToSendRequest} RETURNING *`
             pool.query(request,(err, docs)=>{
-                if(docs) res.send(docs.rows[0])
-                else console.log(err)
+                if(docs) res.status(200).send("Demande d'amis réalisé avec succès")
+                else res.status(400).send("error")
             })
         }
     
@@ -123,8 +122,8 @@ module.exports.sendRequestFriend= async (req,res)=>{
             const request= `update friends set requestfriendswaiting= '${jsonRequestWaiting}' where userId=${idToSendRequest} RETURNING *`
 
             pool.query(request, (err,docs)=>{
-                if(docs) res.send(docs.rows[0])
-                else console.log(err)
+                if(docs) res.status(200).send("Demande d'amis réalisé avec succès")
+                else res.status(400).send("error")
             })
         
         }
@@ -133,6 +132,7 @@ module.exports.sendRequestFriend= async (req,res)=>{
 
 module.exports.acceptFriend= async (req, res)=>{
     
+    //Récupération des données avant update 
     const currentDate = new Date();
     const timeStamp= currentDate.toLocaleString('fr-Fr')
 
@@ -141,11 +141,9 @@ module.exports.acceptFriend= async (req, res)=>{
     let yourFriends= await getYourFriends();
     let friendsOfTheAnotherUser= await getFriendsOfAnother();
 
-    updateRequestSend()
-
 
     async function getYourFriends(){
-        request= `SELECT friends FROM friends WHERE userId=${req.params.id}`
+        const request= `SELECT friends FROM friends WHERE userId=${req.params.id}`
         
             try{
                 const data= await pool.query(request)
@@ -158,7 +156,7 @@ module.exports.acceptFriend= async (req, res)=>{
     }
 
     async function getFriendsOfAnother(){
-        request= `SELECT friends FROM friends WHERE userId=${req.body.idUserToAccept}`
+       const  request= `SELECT friends FROM friends WHERE userId=${req.body.idUserToAcceptOrRefuse}`
         
             try{
                 const data= await pool.query(request)
@@ -170,39 +168,41 @@ module.exports.acceptFriend= async (req, res)=>{
             
     }
 
+    // Update en "chaine"
+    updateRequestSend()
     function updateRequestSend(){
-       
         const requestSendUpdate= requestSend.filter(e=> { return e.userId != req.params.id});
-        
         const jsonRequest= JSON.stringify(requestSendUpdate)
 
-        const request=`update friends set requestsend= '${jsonRequest}' where userId=${req.body.idUserToAccept} RETURNING *`
+        const request=`update friends set requestsend= '${jsonRequest}' where userId=${req.body.idUserToAcceptOrRefuse} RETURNING *`
         pool.query(request, (err, docs)=>{
             if(docs) updateRequestWaiting();
-            else console.log(err)
+            else    res.status(400).send("error")
         })
     }
 
     function updateRequestWaiting(){
-            const updateRequestWaiting= requestWaiting.filter(e=> { return e.userId != req.body.idUserToAccept})
-            const jsonUpdateRequestWaiting= JSON.stringify(updateRequestWaiting)
-            const request= `update friends set requestfriendswaiting= '${jsonUpdateRequestWaiting}' where userId=${req.params.id} RETURNING *`
-            pool.query(request,(err, docs)=>{
+        const updateRequestWaiting= requestWaiting.filter(e=> { return e.userId != req.body.idUserToAcceptOrRefuse})
+        const jsonUpdateRequestWaiting= JSON.stringify(updateRequestWaiting)
+            
+        const request= `update friends set requestfriendswaiting= '${jsonUpdateRequestWaiting}' where userId=${req.params.id} RETURNING *`
+        
+        pool.query(request,(err, docs)=>{
                 if(docs) updateYourFriends();
-                else console.log(err)
+                else res.status(400).send("error")
             })
         }
 
   
     function updateYourFriends(){
+        
+       if(yourFriends === null) yourFriends= [];
        
-        if(yourFriends === null) yourFriends= [];
-        yourFriends.push(req.body.idUserToAccept)
-
+        
+        yourFriends.push({'userId': req.body.idUserToAcceptOrRefuse, 'timeStamp': timeStamp})
         const jsonFriends= JSON.stringify(yourFriends);
 
         const request=`update friends set friends= '${jsonFriends}' where userId=${req.params.id} RETURNING *`
-
         pool.query(request, (err, docs)=>{
             if(docs) updateFriendsOfTheAnotherUser();
             if(err) res.send("erreur lors de l'ajout d'amis")
@@ -210,26 +210,22 @@ module.exports.acceptFriend= async (req, res)=>{
     }
 
     function updateFriendsOfTheAnotherUser(){
-        console.log(friendsOfTheAnotherUser)
+   
         if(friendsOfTheAnotherUser === null) friendsOfTheAnotherUser=[];
-        friendsOfTheAnotherUser.push(req.params.id);
+        friendsOfTheAnotherUser.push({'userId': req.params.id, 'timeStamp': timeStamp});
 
         const jsonFriends= JSON.stringify(friendsOfTheAnotherUser);
 
-        const request= `update friends set friends= '${jsonFriends}' where userId=${req.body.idUserToAccept} RETURNING *`
+        const request= `update friends set friends= '${jsonFriends}' where userId=${req.body.idUserToAcceptOrRefuse} RETURNING *`
 
         pool.query(request, (err, docs)=>{
-            if(docs) res.send(docs)
+            if(docs) res.status(200).send("Ajout d'amis réussi")
             if(err) res.send("erreur lors de l'ajout d'amis")
         })
-
-
     } 
 }
 
-module.exports.refuseFriends=()=>{
-    const currentDate = new Date();
-    const timeStamp= currentDate.toLocaleString('fr-Fr')
+module.exports.refuseFriends=(req,res)=>{
 
     const requestSend= res.locals.requestSend;
     const requestWaiting= res.locals.requestWaiting;
@@ -240,22 +236,56 @@ module.exports.refuseFriends=()=>{
         const requestSendUpdate= requestSend.filter(e=> { return e.userId != req.params.id});
         const jsonRequest= JSON.stringify(requestSendUpdate)
 
-        const request=`update friends set requestsend= '${jsonRequest}' where userId=${req.body.idUserToAccept} RETURNING *`
+        const request=`update friends set requestsend= '${jsonRequest}' where userId=${req.body.idUserToAcceptOrRefuse} RETURNING *`
         pool.query(request, (err, docs)=>{
             if(docs) updateRequestWaiting();
-            else console.log(err)
+            else res.status(400).send("error")
         })
     }
 
     function updateRequestWaiting(){
-            const updateRequestWaiting= requestWaiting.filter(e=> { return e.userId != req.body.idUserToAccept})
+            const updateRequestWaiting= requestWaiting.filter(e=> { return e.userId != req.body.idUserToAcceptOrRefuse})
             const jsonUpdateRequestWaiting= JSON.stringify(updateRequestWaiting)
             const request= `update friends set requestfriendswaiting= '${jsonUpdateRequestWaiting}' where userId=${req.params.id} RETURNING *`
             pool.query(request,(err, docs)=>{
-                if(docs) res.send(docs.rows[0])
-                else console.log(err)
+                if(docs) res.status(200).send("Demande d'amis refusé avec succès")
+                else res.status(400).send("error")
             })
         }
+}
 
+
+module.exports.deleteFriend=(req,res,next)=>{
+    let yourFriends=res.locals.yourFriends
+    let friendsOfTheAnotherUser= res.locals.friendsOfTheAnotherUser;
+
+    updateYourFriends()
+
+    function updateYourFriends(){
+        
+        yourFriends= yourFriends.filter(e =>{e.userId != req.body.idFriendToDelete})
+        
+        const jsonFriends= JSON.stringify(yourFriends);
+
+        const request=`update friends set friends= '${jsonFriends}' where userId=${req.params.id} RETURNING *`
+        pool.query(request, (err, docs)=>{
+            if(docs) updateFriendsOfTheAnotherUser();
+            if(err) res.send("erreur lors de l'ajout d'amis")
+        })
+    }
+
+    function updateFriendsOfTheAnotherUser(){
+        
+        friendsOfTheAnotherUser= friendsOfTheAnotherUser.filter(e=>{e.userId != req.params.id})
+
+        const jsonFriends= JSON.stringify(friendsOfTheAnotherUser);
+
+        const request= `update friends set friends= '${jsonFriends}' where userId=${req.body.idFriendToDelete} RETURNING *`
+
+        pool.query(request, (err, docs)=>{
+            if(docs) res.send("Suppresion réalisé avec succès")
+            if(err) res.send("erreur lors de l'ajout d'amis")
+        })
+    }
 
 }

@@ -18,6 +18,7 @@ module.exports.checkIdUser= async (req, res, next)=>{
 
 module.exports.checkRequestFriends= async (req,res,next)=>{
 
+    // Récupération des informations afin de les updates
     let requestSend= await getRequestSend()
     let requestWaiting= await getRequestWaiting();
     let friends= await getFriends();
@@ -60,11 +61,12 @@ module.exports.checkRequestFriends= async (req,res,next)=>{
         }
     }
 
-
     if(requestSend === null) requestSend= []
     if(requestWaiting === null) requestWaiting= [];
     if(friends === null ) friends= [];
 
+    //Vérification si l'utilisateur a pas déja envoyé une demande d'ajout pour ne pas duppliquer les données 
+    // dans la DB
     checkIdUsersInArray()
     function checkIdUsersInArray(){
         let checkRequestsSend;
@@ -76,17 +78,16 @@ module.exports.checkRequestFriends= async (req,res,next)=>{
         }
         else{
             requestSend.forEach(e=>{ 
-                if(e.userId != req.params.id) return checkRequestsSend= true;
+                if(e.userId != req.body.idToSendRequest) return checkRequestsSend= true;
            })
         }
         
         if(requestWaiting.length == 0 ){
-            console.log("hey")
             checkRequestsWaiting= true;
         }
         else{
             requestWaiting.forEach(e=>{
-                if(e.userId != req.body.idUserToAccept) return checkRequestsWaiting= true
+                if(e.userId != req.params.id) return checkRequestsWaiting= true
             })
         }
         
@@ -100,7 +101,7 @@ module.exports.checkRequestFriends= async (req,res,next)=>{
             })
         }
 
-        if(!checkRequestsSend && !checkRequestsSend && !checkFriends){
+        if(!checkRequestsSend || !checkRequestsSend || !checkFriends){
             res.status(400).send("Vous avez déja fait une demande d'ajout ou vous avez déja cette personne en amis")
         } 
         else{
@@ -109,26 +110,17 @@ module.exports.checkRequestFriends= async (req,res,next)=>{
             next();
         }
     }
-        
-        
-         
-
-       
- 
- 
-   
-    //next();
 }
 
 module.exports.checkAcceptRefuseFriend= async(req,res,next)=>{
 
-    
-    const requestSend= await getRequestSend()
-    const requestWaiting= await getRequestWaiting();
-    
+    // Récupération des données dans la DB afin de les modifier
+    let requestSend= await getRequestSend()
+    let requestWaiting= await getRequestWaiting();
+ 
 
     async function getRequestSend(){
-        const request= `SELECT requestsend FROM friends WHERE userId=${req.body.idUserToAccept}`
+        const request= `SELECT requestsend FROM friends WHERE userId=${req.body.idUserToAcceptOrRefuse}`
         try{
             const data= await pool.query(request)
             
@@ -150,9 +142,16 @@ module.exports.checkAcceptRefuseFriend= async(req,res,next)=>{
             res.status(400).send('Erreur connexion Serveur ou Id Inconnu')
         }
      }
-    
+     
+    if(requestSend === null) requestSend= []
+    if(requestWaiting === null) requestWaiting= [];
+
+    console.log(requestSend)
+     //Vérification si l'utilisateur a bien une demande en attente et si il n'a pas déja en amis la personne
+
      if(requestSend.length>0 && requestWaiting.length>0) checkIdUsersInArray();
      else res.status(400).send('Erreur de demande')
+
 
      function checkIdUsersInArray(){
         let checkRequestSend;
@@ -162,10 +161,8 @@ module.exports.checkAcceptRefuseFriend= async(req,res,next)=>{
         })
 
         requestWaiting.forEach(e=>{
-            if(e.userId == req.body.idUserToAccept) return checkRequestWaiting= true
+            if(e.userId == req.body.idUserToAcceptOrRefuse) return checkRequestWaiting= true
         })
-
-        console.log(checkRequestWaiting)
         
         res.locals.requestSend= requestSend
         res.locals.requestWaiting= requestWaiting
@@ -175,3 +172,64 @@ module.exports.checkAcceptRefuseFriend= async(req,res,next)=>{
      }
 }
 
+module.exports.checkDelete= async (req,res, next)=>{
+
+    //Obtention liste d'amis
+    let yourFriends= await getYourFriends();
+    let friendsOfTheAnotherUser= await getFriendsOfAnother();
+
+
+    async function getYourFriends(){
+        const request= `SELECT friends FROM friends WHERE userId=${req.params.id}`
+        
+            try{
+                const data= await pool.query(request)
+                return data.rows[0].friends
+            }
+            catch (err) {
+                res.status(400).send('Erreur connexion Serveur ou Id Inconnu')
+            }
+        
+    }
+
+    async function getFriendsOfAnother(){
+        const request= `SELECT friends FROM friends WHERE userId=${req.body.idFriendToDelete}`
+        
+            try{
+                const data= await pool.query(request)
+                return data.rows[0].friends
+            }
+            catch (err) {
+                res.status(400).send('Erreur connexion Serveur ou Id Inconnu')
+            }
+    }
+
+    if(yourFriends===null
+        || friendsOfTheAnotherUser ===null 
+        || yourFriends.length<1 
+        || friendsOfTheAnotherUser.length<1
+        ){
+        res.status(400).send('erreur')
+        }
+    else checkData()
+
+    function checkData(){
+        let checkYourData;
+        let checkDataOfTheAnotherUser;
+
+        yourFriends.forEach(e=>{
+            if(e.userId == req.body.idFriendToDelete) return checkYourData=true
+        })
+
+        friendsOfTheAnotherUser.forEach(e=>{
+            if(e.userId == req.params.id) return checkDataOfTheAnotherUser= true
+        })
+
+        if(checkYourData && checkDataOfTheAnotherUser){
+            res.locals.yourFriends= yourFriends;
+            res.locals.friendsOfTheAnotherUser= friendsOfTheAnotherUser;
+            next()
+        }
+        else res.status(400).send('erreur ')
+    }
+}

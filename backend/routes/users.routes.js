@@ -11,7 +11,8 @@ router.get('/infosUser/:id', userControllers.getUser);
 router.put('/changePhotoProfil/:id', userMiddleware.checkIdUser, upload.single('profilPhoto'), userControllers.changePhotoProfil);
 router.put('/sendRequestFriend/:id', userMiddleware.checkRequestFriends,userControllers.sendRequestFriend);
 router.put('/acceptFriend/:id', userMiddleware.checkAcceptRefuseFriend, userControllers.acceptFriend)
-router.put('/refuseFriend/:id')
+router.put('/refuseFriend/:id', userMiddleware.checkAcceptRefuseFriend, userControllers.refuseFriends)
+router.delete('/deleteFriend/:id', userMiddleware.checkDelete, userControllers.deleteFriend)
 
 router.delete('/delete/:id',userMiddleware.checkIdUser,userControllers.deleteUser );
 
