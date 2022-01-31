@@ -4,7 +4,7 @@ Objectifs:
 
 - Approndir mes connaissances en ReactJS / Redux / NodeJS 
 - Créer un projet avec une base de donnée SQL (PostgreSQL) 
-- Utilisé un WebSocket (Socket.io)
+- Utiliser un WebSocket (Socket.io)
 
 
 Fonctionnalités
