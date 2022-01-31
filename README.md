@@ -1,6 +1,6 @@
 Création d'une messagerie Instantanée
 
-Objectif: 
+Objectifs: 
 
 - Approndir mes connaissances en ReactJS / Redux / NodeJS 
 - Créer un projet avec une base de donnée SQL (PostgreSQL) 
