@@ -177,7 +177,7 @@ module.exports.acceptFriend= async (req, res)=>{
         const request=`update friends set requestsend= '${jsonRequest}' where userId=${req.body.idUserToAcceptOrRefuse} RETURNING *`
         pool.query(request, (err, docs)=>{
             if(docs) updateRequestWaiting();
-            else    res.status(400).send("error")
+            if(err) res.status(400).send("erreur lors de l'ajout d'amis")
         })
     }
 
@@ -189,7 +189,7 @@ module.exports.acceptFriend= async (req, res)=>{
         
         pool.query(request,(err, docs)=>{
                 if(docs) updateYourFriends();
-                else res.status(400).send("error")
+                if(err) res.status(400).send("erreur lors de l'ajout d'amis")
             })
         }
 
@@ -205,7 +205,7 @@ module.exports.acceptFriend= async (req, res)=>{
         const request=`update friends set friends= '${jsonFriends}' where userId=${req.params.id} RETURNING *`
         pool.query(request, (err, docs)=>{
             if(docs) updateFriendsOfTheAnotherUser();
-            if(err) res.send("erreur lors de l'ajout d'amis")
+            if(err)  res.status(400).send("erreur lors de l'ajout d'amis")
         })
     }
 
@@ -219,10 +219,20 @@ module.exports.acceptFriend= async (req, res)=>{
         const request= `update friends set friends= '${jsonFriends}' where userId=${req.body.idUserToAcceptOrRefuse} RETURNING *`
 
         pool.query(request, (err, docs)=>{
-            if(docs) res.status(200).send("Ajout d'amis réussi")
-            if(err) res.send("erreur lors de l'ajout d'amis")
+            if(docs) insertIntoMessages()
+            if(err) res.status(400).send("erreur lors de l'ajout d'amis")
         })
     } 
+
+    function insertIntoMessages(){
+        const jsonArrayEmpty= JSON.stringify([])
+        const request=`INSERT INTO messages (speaker1, speaker2, messages) VALUES (${req.params.id}, ${req.body.idUserToAcceptOrRefuse}, '${jsonArrayEmpty}' ) RETURNING *`
+
+        pool.query(request, (err, docs)=>{
+            if(docs) res.status(200).send("Ajout d'amis réalisé avec succés")
+            if(err) res.status(400).send("erreur lors de l'ajout d'amis")
+        })
+    }
 }
 
 module.exports.refuseFriends=(req,res)=>{

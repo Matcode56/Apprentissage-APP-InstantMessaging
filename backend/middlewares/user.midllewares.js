@@ -1,5 +1,3 @@
-const e = require('express');
-const { request } = require('express');
 const pool = require('../config/db');
 
 
@@ -146,7 +144,6 @@ module.exports.checkAcceptRefuseFriend= async(req,res,next)=>{
     if(requestSend === null) requestSend= []
     if(requestWaiting === null) requestWaiting= [];
 
-    console.log(requestSend)
      //Vérification si l'utilisateur a bien une demande en attente et si il n'a pas déja en amis la personne
 
      if(requestSend.length>0 && requestWaiting.length>0) checkIdUsersInArray();
